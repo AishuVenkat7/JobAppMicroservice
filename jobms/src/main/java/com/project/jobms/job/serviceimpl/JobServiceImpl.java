@@ -1,0 +1,88 @@
+package com.project.jobms.job.serviceimpl;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import com.project.jobms.job.Job;
+import com.project.jobms.job.JobRespository;
+import com.project.jobms.job.JobService;
+import com.project.jobms.job.dto.JobCompanyDto;
+import com.project.jobms.job.external.Company;
+
+@Service
+public class JobServiceImpl implements JobService {
+
+	private JobRespository jobRepository;
+
+	public JobServiceImpl(JobRespository jobRepository) {
+		this.jobRepository = jobRepository;
+	}
+
+	private JobCompanyDto convertToDto(Job job) {
+
+//		communication between two microservices
+		RestTemplate restTemplate = new RestTemplate();
+
+		JobCompanyDto jobCompanyDto = new JobCompanyDto();
+		jobCompanyDto.setJob(job);
+		Company company = restTemplate.getForObject(
+				"http://localhost:8081/companies/" + job.getCompanyId(),
+				Company.class);
+		jobCompanyDto.setCompany(company);
+		return jobCompanyDto;
+
+	}
+
+	@Override
+	public List<JobCompanyDto> findAll() {
+
+		List<Job> jobs = jobRepository.findAll();
+		
+//		jobs.stream().map((job) -> convertToDto(job)).collect(Collectors.toList());
+		return jobs.stream()
+				.map(this::convertToDto)
+				.collect(Collectors.toList());
+	}
+
+	@Override
+	public void createJob(Job job) {
+		jobRepository.save(job);
+	}
+
+	@Override
+	public Job findJobById(Long id) {
+		return jobRepository.findById(id).orElseThrow(() -> new RuntimeException("Job not found"));
+	}
+
+	@Override
+	public boolean deleteJobById(Long id) {
+		try {
+			jobRepository.deleteById(id);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+
+	@Override
+	public boolean updateJob(Long id, Job updatedJob) {
+		Optional<Job> jobOptional = jobRepository.findById(id);
+		if (jobOptional.isPresent()) {
+			Job existingJob = jobOptional.get();
+			existingJob.setTitle(updatedJob.getTitle());
+			existingJob.setDescription(updatedJob.getDescription());
+			existingJob.setMinSalary(updatedJob.getMinSalary());
+			existingJob.setMaxSalary(updatedJob.getMaxSalary());
+			existingJob.setLocation(updatedJob.getLocation());
+			jobRepository.save(existingJob);
+			return true;
+		}
+		return false;
+	}
+
+}
